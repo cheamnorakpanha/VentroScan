@@ -19,17 +19,20 @@ export default function ScannerPage() {
 
     function success(result) {
       scanner.clear();
-      setScanResult(result);
+      window.location.href = `https://www.barcodelookup.com/${result}`;
     }
 
     function error(err) {
       console.warn(err);
     }
+
+    return () => {
+      scanner.clear().catch(() => {});
+    };
   }, []);
 
   return (
     <div className="flex items-center justify-center min-h-screen">
-      {/* <h1>QR Code Scanning in NextJs</h1> */}
       {scanResult ? (
         <div>
           Success: <a href={"http://" + scanResult}>{scanResult}</a>
