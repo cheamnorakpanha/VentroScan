@@ -6,16 +6,18 @@ import { useEffect, useState } from "react";
 export default function Scanner() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [hasFatalError, setHasFatalError] = useState(false);
 
   useEffect(() => {
     const scanner = new Html5QrcodeScanner(
       "reader",
       {
         qrbox: {
-          width: 600,
-          height: 600,
+          width: 250,
+          height: 250,
         },
-        fps: 5,
+        fps: 10,
       },
       false,
     );
@@ -23,22 +25,33 @@ export default function Scanner() {
     scanner.render(success, error);
 
     async function success(result) {
-      scanner.clear();
+      if (hasFatalError || loading || product) return;
 
+      console.log("Scanned result:", result);
       setLoading(true);
+      setErrorMsg(null);
 
       try {
         const response = await fetch(`/api/product?barcode=${result}`);
-
         const data = await response.json();
 
-        if (data.products && data.products.length > 0) {
+        if (response.ok && data.products && data.products.length > 0) {
           setProduct(data.products[0]);
+          scanner.clear().catch(err => console.error("Failed to clear scanner", err));
         } else {
-          alert("No product found");
+          if (response.status === 403) {
+            setHasFatalError(true);
+            setErrorMsg("API Key Error (403): Your Barcode Lookup API key is invalid or expired. Please check your .env.local file.");
+            scanner.clear().catch(() => {}); // Stop scanning immediately
+          } else {
+            setErrorMsg(data.error || "No product found for this barcode.");
+            // Brief delay to allow user to move the barcode away
+            await new Promise(r => setTimeout(r, 2000));
+          }
         }
       } catch (err) {
         console.error(err);
+        setErrorMsg("An error occurred while fetching product details.");
       } finally {
         setLoading(false);
       }
@@ -107,7 +120,14 @@ export default function Scanner() {
           </button>
         </div>
       ) : (
-        <div id="reader" className="w-[700px]" />
+        <div className="flex flex-col items-center">
+          {errorMsg && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+              <span className="block sm:inline">{errorMsg}</span>
+            </div>
+          )}
+          <div id="reader" className="w-[700px]" />
+        </div>
       )}
     </div>
   );
